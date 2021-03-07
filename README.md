@@ -14,12 +14,12 @@ pip install -e .
 
 ## Datasets
 For training and validation of neural networks for COVID-19 triage we used several public datasets:
-- [COVID-1110 dataset](https://mosmed.ai/)
+- [Mosmed-1110 dataset](https://mosmed.ai/)
 - [Medseg-20 and Medseg-9 datasets](http://medicalsegmentation.com/covid19/)
 - [NSCLC-Radiomics dataset](https://wiki.cancerimagingarchive.net/display/Public/NSCLC-Radiomics)
 We also used [lung annotations for NSCLC-Radiomics dataset](https://wiki.cancerimagingarchive.net/pages/viewpage.action?pageId=68551327) and [LIDC-IDRI (a.k.a. LUNA16) dataset](https://wiki.cancerimagingarchive.net/display/Public/LIDC-IDRI) to train lung segmentation network.
 
-### COVID-1110
+### Mosmed-1110
 
 ### Medseg-20 and Medseg-9
 
