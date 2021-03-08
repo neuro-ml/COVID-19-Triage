@@ -1,1 +1,3 @@
 deep-pipe==0.0.10
+torch
+torchvision
