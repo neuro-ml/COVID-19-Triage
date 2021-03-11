@@ -18,6 +18,19 @@ def sample_mask_from_dict(d: dict, shape=None, keys=None):
     return d[keys[np.random.randint(len(keys))]]
 
 
+def sample_slice(*arrays, n_scalars=0):
+    if n_scalars:
+        arrays, scalars = arrays[:-n_scalars], arrays[-n_scalars:]
+    else:
+        scalars = []
+
+    check_shapes(*arrays)
+    slc = np.random.randint(arrays[0].shape[-1])
+    arrays = [arr[..., slc] for arr in arrays]
+    
+    return (*arrays, *scalars)
+
+
 def drop_slices(*arrays, n_slices_left, n_scalars=0):
     if n_scalars:
         arrays, scalars = arrays[:-n_scalars], arrays[-n_scalars:]

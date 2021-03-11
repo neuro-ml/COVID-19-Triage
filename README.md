@@ -9,6 +9,8 @@ To install requirements:
 ```setup
 conda create -n covid_19_triage python=3.6
 conda activate covid_19_triage
+git clone https://github.com/neuro-ml/COVID-19-Triage
+cd COVID-19-Triage
 pip install -e .
 ```
 

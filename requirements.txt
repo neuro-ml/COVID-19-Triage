@@ -1,3 +1,5 @@
-deep-pipe==0.0.10
 torch
 torchvision
+nibabel
+deep-pipe==0.0.10
+dicom-csv @ git+https://github.com/neuro-ml/dicom-csv@76816cbb49a35173549a6df46e963c985c183164#egg=dicom-csv,

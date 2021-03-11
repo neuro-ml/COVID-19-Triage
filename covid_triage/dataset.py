@@ -1,7 +1,7 @@
 from pathlib import Path
 import numpy as np
 
-from dpipe.io import load
+from dpipe.io import save, load
 from dpipe.itertools import dmap
 from dpipe.dataset.wrappers import Proxy
 from dpipe.im.utils import composition
