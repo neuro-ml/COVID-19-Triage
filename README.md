@@ -6,7 +6,7 @@ This repository is the official implementation of [CT-based COVID-19 Triage: Dee
 
 To install requirements:
 
-```setup
+```
 conda create -n covid_19_triage python=3.6
 conda activate covid_19_triage
 git clone https://github.com/neuro-ml/COVID-19-Triage
@@ -15,36 +15,70 @@ pip install -e .
 ```
 
 ## Datasets
-For training and validation of neural networks for COVID-19 triage we used several public datasets:
-- [Mosmed-1110 dataset](https://mosmed.ai/)
-- [Medseg-20 and Medseg-9 datasets](http://medicalsegmentation.com/covid19/)
-- [NSCLC-Radiomics dataset](https://wiki.cancerimagingarchive.net/display/Public/NSCLC-Radiomics)
-We also used [lung annotations for NSCLC-Radiomics dataset](https://wiki.cancerimagingarchive.net/pages/viewpage.action?pageId=68551327) and [LIDC-IDRI (a.k.a. LUNA16) dataset](https://wiki.cancerimagingarchive.net/display/Public/LIDC-IDRI) to train lung segmentation network.
-
 ### Mosmed-1110
+To download the dataset run
+```
+python scripts/download_mosmed.py -o <raw_mosmed_root>
+```
+To prepare the data for training run
+```
+python scripts/prepare_mosmed.py -i <raw_mosmed_root> -o <mosmed_root>
+```
+Here `<raw_mosmed_root>`, `<mosmed_root>` are some paths under your file system, where you want to save the raw and prepared data, correspondingly.
 
 ### Medseg-20 and Medseg-9
-
-### NSCLC-Radiomics
-
-### LIDC-IDRI
-
-## Training
-
-To train the model(s) in the paper, run this command:
-
-```train
-python train.py --input-data <path_to_data> --alpha 10 --beta 20
+Download [Medseg-20](http://medicalsegmentation.com/covid19/) and [Medseg-9](https://zenodo.org/record/3757476#.Xp0FhB9fgUE) datasets. Unzip archives to the folders under `<raw_medseg_root>`. You should get the following folders structure
+```
+- <raw_medseg_root>
+    - COVID-19-CT-Seg_20cases
+        - *.nii.gz
+    - Infection_Mask
+    - Lung_Mask
+    - rp_im
+    - rp_lung_msk
+    - rp_msk
+```
+Then run
+```
+python scripts/prepare_medseg.py -i <raw_medseg_root> -o <medseg_root>
 ```
 
->📋  Describe how to train the models, with example commands on how to train the models in your paper, including the full training procedure and appropriate hyperparameters.
+### NSCLC-Radiomics
+Download the [dicoms](https://wiki.cancerimagingarchive.net/display/Public/NSCLC-Radiomics) and [lungs masks](https://wiki.cancerimagingarchive.net/pages/viewpage.action?pageId=68551327). You should get the
+folders structure
+```
+- <raw_nsclc_root>
+    - NSCLC-Radiomics
+        - LUNG1-*
+    - Thoracic_Cavities
+        - LUNG1-*
+```
+Then run
+```
+python scripts/prepare_nsclc.py -i <raw_nsclc_root> -o <nsclc_root>
+```
 
-## Evaluation
+## Training models
 
-To evaluate my model on ImageNet, run:
+### Lungs segmentation
+First we need to train lungs segmentation network. It is used in the COVID-19 triage pipelines at the preprocessing step to crop input image to lungs bounding box.
+
+To train network run
+```
+python scripts/train_lungs_sgm.py --nsclc <nsclc_root> -o experiments/lungs_sgm
+```
+Then run 
+```
+python scripts/predict_mosmed_lungs_masks.py --model experiments/lungs_sgm/checkpoints/best/Sequential --mosmed <mosmed_root>
+```
+to predict and save lungs masks for the Mosmed-1110 dataset.
+
+## Proposed multitask model
+
+To train the proposed multitask network run
 
 ```eval
-python eval.py --model-file mymodel.pth --benchmark imagenet
+python scripts/train_multitask_spatial.py --mosmed <mosmed_root> --medseg <medseg_root> --nsclc <nsclc_root> -o experiments/multitask_spatial
 ```
 
 >📋  Describe how to evaluate the trained models on benchmarks reported in the paper, give commands that produce the results (section below).

@@ -1,25 +1,28 @@
 import argparse
 from functools import partial
 import numpy as np
+from pathlib import Path
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score, recall_score, precision_score, accuracy_score
 import torch
 from torch import nn
 import torch.nn.functional as F
 
-from dpipe.dataset.wrappers import merge, apply
+from dpipe.dataset.wrappers import merge, cache_methods
 from dpipe.batch_iter import Infinite, load_by_random_id, unpack_args, apply_at, \
     random_apply, multiply, combine_pad, sample_args
 from dpipe.im.shape_utils import prepend_dims
 from dpipe import layers
-from dpipe.torch import train_step, masked_loss, inference_step
+from dpipe.torch import train_step, masked_loss, inference_step, save_model_state
+from dpipe.predict import add_extract_dims
 from dpipe.train.validator import compute_metrics
 from dpipe.train import train, Schedule, TBLogger, TQDM, TimeProfiler
 
 from covid_triage.dataset import Dataset, RescaleToPixelSpacing, CropToLungs, NormalizeIntensities
 from covid_triage.utils import invert_stratification_mapping
 from covid_triage.batch_iter import get_sampling_weights, sample_mask_from_dict, drop_slices
-from covid_triage.architecture import SliceWise
+from covid_triage.model import get_covid_multitask_spatial_model
+from covid_triage.predictor import multi_inference_step
 from covid_triage.checkpoint import CheckpointWithBestMetrics
 
 # preprocessing hyperparameters
@@ -38,24 +41,23 @@ NUM_BATCHES_PER_EPOCH = 300
 CLS_WEIGHT = .1  # BCE for classifiction task is multitplied by this weight before adding to BCE for segmentation task
 LEARNING_RATE = Schedule(initial=3e-4, epoch2value_multiplier={100: .3, 200: .3})
 
+DEVICE = 'cuda'
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--mosmed')
-    parser.add_argument('--medseg')
-    parser.add_argument('--nsclc')
-    args = parser.parse_args()
-    
+
+def main(mosmed_root, medseg_root, nsclc_root, dst):
+    dst = Path(dst)
+
     # dataset
-    mosmed = Dataset(root=parser.mosmed)
-    medseg = Dataset(root=parser.medseg)
-    nsclc = Dataset(root=parser.nsclc)
+    mosmed = Dataset(root=mosmed_root)
+    medseg = Dataset(root=medseg_root)
+    nsclc = Dataset(root=nsclc_root)
     raw_dataset = merge(mosmed, medseg, nsclc)
-    dataset = NormalizeIntensities(CropToLungs(RescaleToPixelSpacing(raw_dataset, PIXEL_SPACING)), WINDOW)
+    dataset = cache_methods(NormalizeIntensities(CropToLungs(RescaleToPixelSpacing(raw_dataset, PIXEL_SPACING)), WINDOW))
 
     # cross validation design
     mosmed_positive_ids = sorted(filter(dataset.load_covid_label, mosmed.ids)) 
-    negative_ids = sorted(set(mosmed.ids) - mosmed_positive_ids) + nsclc.ids
+    nsclc_ids_with_lungs_mask = sorted(filter(nsclc.has_lungs_mask, nsclc.ids))
+    negative_ids = sorted(set(mosmed.ids) - set(mosmed_positive_ids)) + nsclc_ids_with_lungs_mask
     positive_ids_with_mask = sorted(filter(dataset.has_covid_masks, mosmed_positive_ids)) + medseg.ids
     positive_ids_without_mask = sorted(set(mosmed_positive_ids) - set(positive_ids_with_mask))
     ids_without_positive_mask = negative_ids + positive_ids_without_mask
@@ -65,24 +67,24 @@ def main():
         'positive_without_mask': positive_ids_without_mask,
         'positive_with_mask': positive_ids_with_mask
     }
-    id_to_stratifiction_label = invert_stratification_mapping(stratification_label_to_ids)
+    id_to_stratification_label = invert_stratification_mapping(stratification_label_to_ids)
 
     train_ids, val_ids = train_test_split(ids_without_positive_mask, test_size=VAL_SIZE, random_state=RANDOM_SEED, 
-        stratify=[id_to_stratifiction_label[id_] for id_ in ids_without_positive_mask])
+        stratify=[id_to_stratification_label[id_] for id_ in ids_without_positive_mask])
     train_ids += positive_ids_with_mask
     
     # batch iterator
     label_to_sampling_weight = {
         # used only to penalize classification head
         'negative': .25,
-        'mosmed_positive_without_mask': .25,
+        'positive_without_mask': .25,
         # used only to penalize segmentation head
         'positive_with_mask': .5
     }
-    sampling_weights = get_sampling_weights(train_ids, id_to_stratifiction_label, label_to_sampling_weight)
+    sampling_weights = get_sampling_weights(train_ids, id_to_stratification_label, label_to_sampling_weight)
     batch_iter = Infinite(
         load_by_random_id(dataset.load_image, dataset.load_covid_masks, dataset.load_covid_label, 
-                        ids=train_ids, weights=sampling_weights),
+                          ids=train_ids, weights=sampling_weights),
         unpack_args(lambda image, masks, label: (
             image, sample_mask_from_dict(masks, shape=image.shape), label, 
         )),
@@ -96,42 +98,10 @@ def main():
     )
 
     # neural network architecture
-    backbone = SliceWise(nn.Sequential(
-        nn.Conv2d(1, 8, kernel_size=3, padding=1),
-        layers.FPN(
-            layer=layers.ResBlock2d,
-            downsample=nn.MaxPool2d(2, ceil_mode=True),
-            upsample=nn.Identity,
-            merge=lambda left, down: torch.add(*layers.interpolate_to_left(left, down, 'bilinear')),
-            structure=[
-                [[8, 8, 8], [8, 8]],
-                [[8, 16, 16], [16, 16, 8]],
-                [[16, 32, 32], [32, 32, 16]],
-                [[32, 64, 64], [64, 64, 32]],
-                [[64, 128, 128], [128, 128, 64]],
-                [[128, 256, 256], [256, 256, 128]],
-                [256, 512, 256]
-            ],
-            kernel_size=3,
-            padding=1
-        ),
-    ))
-    sgm_head = SliceWise(nn.Sequential(
-        layers.ResBlock2d(8, 8, kernel_size=3, padding=1),
-        layers.PreActivation2d(8, 1, kernel_size=1, bias=False),  # shape (N, 1, H, W, D)
-    ))
-    cls_head = nn.Sequential(
-        layers.PyramidPooling(partial(F.max_pool3d, ceil_mode=True), levels=4),
-        nn.Dropout(),
-        nn.Linear(layers.PyramidPooling.get_multiplier(levels=4, ndim=3) * 8, 1024),
-        nn.ReLU(),
-        nn.Dropout(),
-        nn.Linear(1024, 1, bias=False),  # shape (N, 1)
-    )
-    architecture = nn.Sequential(backbone, layers.Split(sgm_head, cls_head))
+    model = get_covid_multitask_spatial_model().to(DEVICE)
 
     # optimizer 
-    optimizer = torch.optim.Adam(architecture.parameters())
+    optimizer = torch.optim.Adam(model.parameters())
 
 
     # criterion
@@ -159,10 +129,7 @@ def main():
         Input: an image of size (H, W, D) which is normalized, zoomed to spacing and cropped to lungs.
         Output: the COVID-19 lesions probability map and the probability of being COVID-19 positive.
         """
-        fm = inference_step(image, architecture=backbone)
-        sgm_probas = inference_step(fm, architecture=sgm_head, activation=torch.sigmoid)
-        cls_proba = inference_step(fm, architecture=cls_head, activation=torch.sigmoid)
-        return sgm_probas, cls_proba
+        return multi_inference_step(image, architecture=model, actvations=torch.sigmoid)
 
 
     # validation metrics
@@ -183,16 +150,16 @@ def main():
 
 
     # train
-    logger = TBLogger('logs')
+    logger = TBLogger(dst / 'logs')
     train(
         train_step=train_step,
         batch_iter=batch_iter,
         n_epochs=NUM_EPOCHS,
         logger=logger,
-        checkpoints=CheckpointWithBestMetrics('checkpoints', [architecture, optimizer], are_better),
+        checkpoints=CheckpointWithBestMetrics(dst / 'checkpoints', [model, optimizer], are_better),
         time=TimeProfiler(logger.logger),
         validate=validate,
-        architecture=architecture,
+        architecture=model,
         optimizer=optimizer,
         criterion=criterion,
         lr=LEARNING_RATE,
@@ -200,3 +167,14 @@ def main():
         loss_key='loss',
         tqdm=TQDM(),
     )
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--mosmed')
+    parser.add_argument('--medseg')
+    parser.add_argument('--nsclc')
+    parser.add_argument('-o', '--output')
+    args = parser.parse_args()
+
+    main(args.mosmed, args.medseg, args.nsclc, args.output)

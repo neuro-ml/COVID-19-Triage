@@ -12,7 +12,7 @@ def main(src, dst):
     src = Path(src)
     dst = Path(dst)
     for file in tqdm(list(src.glob('ct*/*.nii.gz'))):
-        id_ = file.name[-len('.nii.gz')]
+        id_ = file.name[:-len('.nii.gz')]
         image = load_nii_arr(file).astype(np.int16)
         spacing = load_nii_spacing(file)
 

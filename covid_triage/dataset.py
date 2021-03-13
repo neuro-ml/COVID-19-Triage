@@ -37,10 +37,13 @@ class Dataset:
         return bool(list(self.root.glob(f'covid_masks/{id_}/*/covid_mask.npy')))
 
     def load_covid_label(self, id_):
-        return load(self.root / id_ / 'covid_label.json')
+        return load(self.root / 'covid_labels' / id_ / 'covid_label.json')
 
     def load_lungs_mask(self, id_):
         return load(self.root / 'lungs_masks' / id_ / 'lungs_mask.npy')
+
+    def has_lungs_mask(self, id_):
+        return (self.root / 'lungs_masks' / id_ / 'lungs_mask.npy').exists()
 
 
 class RescaleToPixelSpacing(Proxy):
@@ -62,7 +65,7 @@ class RescaleToPixelSpacing(Proxy):
         scale_factor = self._get_scale_factor(id_)
         return dmap(zoom, covid_masks, scale_factor, axis=(0, 1), order=0)
 
-    def load_lungs(self, id_):
+    def load_lungs_mask(self, id_):
         lungs_mask = self._shadowed.load_lungs_mask(id_)
         scale_factor = self._get_scale_factor(id_)
         return zoom(lungs_mask, scale_factor, axis=(0, 1), order=0)
@@ -74,7 +77,7 @@ class CropToLungs(Proxy):
         lungs_mask = self._shadowed.load_lungs_mask(id_)
 
         if image.shape != lungs_mask.shape:
-            raise RuntimeError(f'{id_}: image and lungs mask have different shapes.')
+            raise RuntimeError(f'{id_}: image and lungs mask have different shapes: {image.shape} != {lungs_mask.shape}.')
 
         if not lungs_mask.any():
             raise RuntimeError(f'{id_}: empty lungs mask.')
@@ -83,7 +86,7 @@ class CropToLungs(Proxy):
         return crop_to_box(image, lungs_box)
 
     def load_covid_masks(self, id_):
-        covid_masks = self._shadowed.load_covid_mask(id_)
+        covid_masks = self._shadowed.load_covid_masks(id_)
         lungs_mask = self._shadowed.load_lungs_mask(id_)
 
         if not all(covid_mask.shape == lungs_mask.shape for covid_mask in covid_masks.values()):
