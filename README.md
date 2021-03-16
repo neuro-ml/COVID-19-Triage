@@ -80,7 +80,7 @@ where `<raw_test_root> = .../test`.
 ## Training models
 
 ### Lungs segmentation
-First we need to train lungs segmentation network. It is used in the COVID-19 triage pipelines at the preprocessing step to crop input image to lungs bounding box.
+First we need to train lungs segmentation network. It is used in the COVID-19 triage pipelines at the preprocessing step to crop an input image to the lungs bounding box.
 
 To train network run
 ```
@@ -113,7 +113,7 @@ python scripts/train_resnet.py --mosmed <mosmed_root> --nsclc <nsclc_root> -o ex
 ## Results
 
 ### Proposed multitask model
-To evaluate the trained proposed multitask model on the test dataset and save predictions to `<test_predictions_root>` run
+To evaluate the trained proposed multitask model on the test dataset and save predictions to `<multitask_spatial_predictions_root>` run
 ```
 python scripts/eval_multitask_spatial.py --lungs_model experiments/lungs_sgm/checkpoints/best/Sequential --mutltitask_spatial experiments/multitask_spatial/checkpoints/best/MultitaskSpatial --test <test_root> -o <multitask_spatial_predictions_root>
 ```
@@ -123,7 +123,7 @@ python scripts/calculate_metrics.py --test <test_root> --pred <multitask_spatial
 ```
 
 ### ResNet-50
-To evaluate ResNet-50 run
+To evaluate ResNet-50 and save predictions to `<resnet_predictions_root>` run
 ```
 python scripts/eval_resnet.py --lungs_model experiments/lungs_sgm/checkpoints/best/Sequential --resnet experiments/resnet/checkpoints/best/Sequential --test <test_root> -o <resnet_predictions_root>
 ```
