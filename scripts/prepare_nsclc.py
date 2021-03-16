@@ -4,11 +4,18 @@ from pathlib import Path
 from tqdm import tqdm
 from datetime import datetime
 import numpy as np
+import nibabel
 
 from dicom_csv import get_common_tag, get_slices_plane, Plane, order_series, stack_images, get_voxel_spacing
 from dicom_csv.exceptions import ConsistencyError
 
-from covid_triage.io import load_dicoms, load_nii_arr, save_image, save_covid_label, save_lungs_mask
+from covid_triage.io import load_dicoms, save_image, save_covid_label, save_lungs_mask
+
+
+def load_nii_arr(file):
+    arr = nibabel.as_closest_canonical(nibabel.load(file)).get_fdata()
+    arr = np.swapaxes(arr[::-1, ::-1, ::-1], 0, 1)
+    return arr
 
 
 def main(src, dst):

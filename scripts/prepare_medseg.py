@@ -4,9 +4,21 @@ from pathlib import Path
 from tqdm import tqdm
 from datetime import datetime
 import numpy as np
+import nibabel
 
-from covid_triage.io import load_nii_arr, load_nii_spacing, save_image, save_covid_label, \
+from covid_triage.io import save_image, save_covid_label, \
     save_covid_mask, save_lungs_mask
+
+
+def load_nii_arr(file):
+    arr = nibabel.as_closest_canonical(nibabel.load(file)).get_fdata()
+    arr = np.swapaxes(arr[::-1, ::-1, ::-1], 0, 1)
+    return arr
+
+
+def load_nii_spacing(file):
+    zooms = nibabel.as_closest_canonical(nibabel.load(file)).header.get_zooms()
+    return zooms[1], zooms[0], zooms[2]
 
 
 def main(src, dst):

@@ -20,7 +20,7 @@ from covid_triage.dataset import Dataset, RescaleToPixelSpacing, NormalizeIntens
 from covid_triage.batch_iter import sample_slice
 from covid_triage.checkpoint import CheckpointWithBestMetrics
 from covid_triage.model import get_lungs_sgm_model
-from covid_triage.const import PIXEL_SPACING, WINDOW
+from covid_triage.const import PIXEL_SPACING, WINDOW, LUNGS_SGM_THRESHOLD
 
 # cross validation hyperparameters
 RANDOM_SEED = 42
@@ -28,8 +28,8 @@ VAL_SIZE = 30
 
 # training hyperparameters
 BATCH_SIZE = 30
-NUM_EPOCHS = 20
-NUM_BATCHES_PER_EPOCH = 2
+NUM_EPOCHS = 100
+NUM_BATCHES_PER_EPOCH = 160
 LEARNING_RATE = Schedule(initial=1e-3, epoch2value_multiplier={50: .1})
 
 DEVICE = 'cuda'
@@ -61,7 +61,7 @@ def main(nsclc_root, dst):
     # torch model
     model = get_lungs_sgm_model().to(DEVICE)
 
-    # optimizer 
+    # optimizer
     optimizer = torch.optim.Adam(model.parameters())
 
     # predict 
@@ -71,7 +71,7 @@ def main(nsclc_root, dst):
             inference_step(slc, architecture=model, activation=torch.sigmoid)
             for slc in iterate_axis(image, -1)
         ]
-        return np.stack(slice_predictions, -1) >= .5
+        return np.stack(slice_predictions, -1) >= LUNGS_SGM_THRESHOLD
 
     # validation metrics
     metrics = convert_to_aggregated({'dice': dice_score})
@@ -99,7 +99,7 @@ def main(nsclc_root, dst):
         criterion=F.binary_cross_entropy_with_logits,
         lr=LEARNING_RATE,
         n_targets=1,
-        tqdm=TQDM(),
+        tqdm=TQDM(loss=False),
     )
 
 

@@ -21,18 +21,8 @@ def load_dicoms(root):
     return dicoms
 
 
-def load_nii_arr(file):
-    arr = nibabel.as_closest_canonical(nibabel.load(file)).get_fdata()
-    arr = np.swapaxes(arr[::-1, ::-1, ::-1], 0, 1)
-    return arr
-
-
-def load_nii_spacing(file):
-    zooms = nibabel.as_closest_canonical(nibabel.load(file)).header.get_zooms()
-    return zooms[1], zooms[0], zooms[2]
-
-
 def save_image(root, id_, image, spacing):
+    root = Path(root)
     path = root / 'images' / id_
     path.mkdir(parents=True, exist_ok=True)
     save(image, path / 'image.npy')
@@ -40,18 +30,28 @@ def save_image(root, id_, image, spacing):
 
 
 def save_lungs_mask(root, id_, lungs_mask):
+    root = Path(root)
     path = root / 'lungs_masks' / id_
     path.mkdir(parents=True, exist_ok=True)
     save(lungs_mask, path / f'lungs_mask.npy')
 
 
 def save_covid_mask(root, id_, rater, covid_mask):
+    root = Path(root)
     path = root / 'covid_masks' / id_ / rater
     path.mkdir(parents=True, exist_ok=True)
     save(covid_mask, path / f'covid_mask.npy')
 
 
 def save_covid_label(root, id_, covid_label):
+    root = Path(root)
     path = root / 'covid_labels' / id_
     path.mkdir(parents=True, exist_ok=True)
     save(covid_label, path / f'covid_label.json')
+
+
+def save_subset(root, name, ids):
+    root = Path(root)
+    path = root / 'subsets' / name
+    path.mkdir(parents=True, exist_ok=True)
+    save(ids, path / 'ids.json')

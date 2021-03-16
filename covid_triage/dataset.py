@@ -16,6 +16,9 @@ class Dataset:
         root = Path(root)
         self.root = root
         self.ids = sorted(path.name for path in root.glob('images/*'))
+        for subset in self.root.glob('subsets/*'):
+            subset_ids = load(subset / 'ids.json')
+            setattr(self, f'{subset.name}_ids', subset_ids)
 
     def load_image(self, id_):
         return load(self.root / 'images' / id_ / 'image.npy')

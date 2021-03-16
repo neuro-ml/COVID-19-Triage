@@ -58,6 +58,25 @@ Then run
 python scripts/prepare_nsclc.py -i <raw_nsclc_root> -o <nsclc_root>
 ```
 
+### Mosmed-Test
+Finally, download the test dataset that we released at [google disk](). Unzip archive `test.zip`. You obtain the folder
+```
+- .../test
+    - covid
+        - images
+            - *.nii.gz
+        - masks
+            - *.nii.gz
+    - bacterial_pneumonia
+    - nodules
+    - normal
+```
+To prepare this Nifti dataset for testing run
+```
+python scripts/prepare_test.py -i <raw_test_root> -o <test_root>
+```
+where `<raw_test_root> = .../test`.
+
 ## Training models
 
 ### Lungs segmentation
@@ -69,41 +88,46 @@ python scripts/train_lungs_sgm.py --nsclc <nsclc_root> -o experiments/lungs_sgm
 ```
 Then run 
 ```
-python scripts/predict_mosmed_lungs_masks.py --model experiments/lungs_sgm/checkpoints/best/Sequential --mosmed <mosmed_root>
+python scripts/predict_dataset_lungs_masks.py --model experiments/lungs_sgm/checkpoints/best/Sequential --dataset <mosmed_root>
 ```
-to predict and save lungs masks for the Mosmed-1110 dataset.
+and
+```
+python scripts/predict_dataset_lungs_masks.py --model experiments/lungs_sgm/checkpoints/best/Sequential --dataset <test_root>
+```
+to predict and save lungs masks for the Mosmed-1110 and Mosmed-Test datasets.
 
-## Proposed multitask model
+### Proposed multitask model
 
-To train the proposed multitask network run
+To train the proposed multitask network for COVID-19 triage run
 
-```eval
+```
 python scripts/train_multitask_spatial.py --mosmed <mosmed_root> --medseg <medseg_root> --nsclc <nsclc_root> -o experiments/multitask_spatial
 ```
 
->📋  Describe how to evaluate the trained models on benchmarks reported in the paper, give commands that produce the results (section below).
-
-## Pre-trained Models
-
-You can download pretrained models here:
-
-- [My awesome model](https://drive.google.com/mymodel.pth) trained on ImageNet using parameters x,y,z. 
-
->📋  Give a link to where/how the pretrained models can be downloaded and how they were trained (if applicable).  Alternatively you can have an additional column in your results table with a link to the models.
+### ResNet-50
+To train ResNet-50 for COVID-19 identification run
+```
+python scripts/train_resnet.py --mosmed <mosmed_root> --nsclc <nsclc_root> -o experiments/resnet
+```
 
 ## Results
 
-Our model achieves the following performance on :
+### Proposed multitask model
+To evaluate the trained proposed multitask model on the test dataset and save predictions to `<test_predictions_root>` run
+```
+python scripts/eval_multitask_spatial.py --lungs_model experiments/lungs_sgm/checkpoints/best/Sequential --mutltitask_spatial experiments/multitask_spatial/checkpoints/best/MultitaskSpatial --test <test_root> -o <multitask_spatial_predictions_root>
+```
+To calculate metrics run
+```
+python scripts/calculate_metrics.py --test <test_root> --pred <multitask_spatial_predictions_root>
+```
 
-### [Image Classification on ImageNet](https://paperswithcode.com/sota/image-classification-on-imagenet)
-
-| Model name         | Top 1 Accuracy  | Top 5 Accuracy |
-| ------------------ |---------------- | -------------- |
-| My awesome model   |     85%         |      95%       |
-
->📋  Include a table of results from your paper, and link back to the leaderboard for clarity and context. If your main result is a figure, include that figure and link to the command or notebook to reproduce it. 
-
-
-## Contributing
-
->📋  Pick a licence and describe how to contribute to your code repository. 
+### ResNet-50
+To evaluate ResNet-50 run
+```
+python scripts/eval_resnet.py --lungs_model experiments/lungs_sgm/checkpoints/best/Sequential --resnet experiments/resnet/checkpoints/best/Sequential --test <test_root> -o <resnet_predictions_root>
+```
+To calculate metrics run
+```
+python scripts/calculate_metrics.py --test <test_root> --pred <resnet_predictions_root>
+```
