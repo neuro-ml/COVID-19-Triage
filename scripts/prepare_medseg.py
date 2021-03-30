@@ -57,9 +57,13 @@ def main(src, dst):
         
         if id_.startswith('radiopaedia'):
             image = image[::-1]
+            covid_mask = covid_mask[::-1]
+            lungs_mask = lungs_mask[::-1]
 
         if id_ == 'radiopaedia_7_85703_0':
             image = image[..., ::-1]
+            covid_mask = covid_mask[..., ::-1]
+            lungs_mask = lungs_mask[..., ::-1]
 
         assert covid_mask.shape == image.shape
         assert lungs_mask.shape == image.shape
