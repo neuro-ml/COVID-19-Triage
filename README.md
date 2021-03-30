@@ -59,7 +59,7 @@ python scripts/prepare_nsclc.py -i <raw_nsclc_root> -o <nsclc_root>
 ```
 
 ### Mosmed-Test
-Finally, download the test dataset that we released at [google disk](). Unzip archive `test.zip`. You obtain the folder
+Finally, download the test dataset that we released at [google drive](https://drive.google.com/drive/folders/11sZBMy-anznvzSEynWZgEh3Ua5vrp46K). The dataset has the following tree
 ```
 - .../test
     - covid
@@ -68,8 +68,14 @@ Finally, download the test dataset that we released at [google disk](). Unzip ar
         - masks
             - *.nii.gz
     - bacterial_pneumonia
+        - images
+            - *.nii.gz
     - nodules
+        - images
+            - *.nii.gz
     - normal
+        - images
+            - *.nii.gz
 ```
 To prepare this Nifti dataset for testing run
 ```
