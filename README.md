@@ -1,6 +1,6 @@
 # CT-based COVID-19 Triage: Deep Multitask Learning Improves Joint Identification and Severity Quantification
 
-This repository is the official implementation of [CT-based COVID-19 Triage: Deep Multitask Learning Improves Joint Identification and Severity Quantification]().
+This repository is the official implementation of [CT-based COVID-19 Triage: Deep Multitask Learning Improves Joint Identification and Severity Quantification](https://www.sciencedirect.com/science/article/pii/S1361841521001006).
 
 ## Requirements
 
